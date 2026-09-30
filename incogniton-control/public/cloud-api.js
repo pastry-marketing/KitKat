@@ -123,7 +123,14 @@ export async function signIn(email, password) {
 }
 
 export async function signUp(email, password, displayName) {
-  const response = await supabase.auth.signUp({ email, password, options: { data: { display_name: displayName } } });
+  const response = await supabase.auth.signUp({
+    email,
+    password,
+    options: {
+      data: { display_name: displayName },
+      emailRedirectTo: location.origin
+    }
+  });
   if (response.error) fail(response.error);
   context = null;
   return response.data;
@@ -155,7 +162,9 @@ export async function cloudApi(path, options = {}) {
     return { users: usersResponse.data.map((user) => ({ ...user, id: user.user_id, name: user.display_name, allowedGroups: user.role === "super_admin" ? ["*"] : (groups.get(user.user_id) || []) })), manageableRoles: manageableRoles(membership.role) };
   }
   if (path === "/api/users" && method === "POST") {
-    const response = await supabase.functions.invoke("invite-user", { body: { ...body, workspaceId: membership.workspace_id } });
+    const response = await supabase.functions.invoke("invite-user", {
+      body: { ...body, workspaceId: membership.workspace_id, redirectTo: location.origin }
+    });
     if (response.error) fail(response.error);
     return response.data;
   }

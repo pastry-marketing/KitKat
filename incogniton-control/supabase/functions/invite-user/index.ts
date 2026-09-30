@@ -24,6 +24,13 @@ Deno.serve(async (req) => {
     const role = String(input.role || "");
     const email = String(input.email || "").trim().toLowerCase();
     const name = String(input.name || "").trim();
+    const requestedRedirect = String(input.redirectTo || "");
+    const redirectTo = new Set([
+      "https://kitkat-topaz.vercel.app",
+      "https://kitkat-pastry-markting.vercel.app",
+    ]).has(requestedRedirect)
+      ? requestedRedirect
+      : "https://kitkat-topaz.vercel.app";
     if (!workspaceId || !email || !name) throw new Error("Name, email, and workspace are required");
     const { data: callerMembership, error: membershipError } = await adminClient.from("workspace_members").select("role,active").eq("workspace_id", workspaceId).eq("user_id", caller.id).single();
     if (membershipError || !callerMembership?.active) throw new Error("Workspace access denied");
@@ -31,7 +38,10 @@ Deno.serve(async (req) => {
       || (callerMembership.role === "fb_admin" && role === "fb_operator")
       || (callerMembership.role === "nd_admin" && role === "nd_operator");
     if (!allowed) throw new Error("You cannot create a user with that role");
-    const { data: invited, error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(email, { data: { display_name: name } });
+    const { data: invited, error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(email, {
+      data: { display_name: name },
+      redirectTo,
+    });
     if (inviteError || !invited.user) throw inviteError || new Error("Invitation failed");
     const { data: member, error: insertError } = await adminClient.from("workspace_members").insert({ workspace_id: workspaceId, user_id: invited.user.id, display_name: name, role, created_by: caller.id }).select().single();
     if (insertError) { await adminClient.auth.admin.deleteUser(invited.user.id); throw insertError; }
