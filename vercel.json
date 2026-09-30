@@ -1,0 +1,8 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "vite",
+  "installCommand": "npm --prefix incogniton-control install",
+  "buildCommand": "npm --prefix incogniton-control run build",
+  "outputDirectory": "incogniton-control/dist",
+  "cleanUrls": true
+}

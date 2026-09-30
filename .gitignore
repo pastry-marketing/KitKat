@@ -1,0 +1,7 @@
+incogniton-control/node_modules/
+incogniton-control/dist/
+incogniton-control/data/
+.vercel/
+.env
+.env.local
+npm-debug.log*
