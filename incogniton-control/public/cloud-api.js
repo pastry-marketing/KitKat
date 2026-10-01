@@ -1,7 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 
-const SUPABASE_URL = "https://bsqsxqiyxzusywbjwmqo.supabase.co";
-const SUPABASE_KEY = "sb_publishable_dLkk-iyTHtlGdUJsWsanVA_Zjkn8WTD";
+const SUPABASE_URL = "https://mqxpsagrjbwryqgiyzfr.supabase.co";
+const SUPABASE_KEY = "sb_publishable_mMEnrqnXRumi1rlNaxXaXw_Wd7bB4t8";
 
 export const isCloudMode = !["localhost", "127.0.0.1"].includes(location.hostname);
 export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
