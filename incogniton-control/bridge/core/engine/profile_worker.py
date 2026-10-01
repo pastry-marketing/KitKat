@@ -116,8 +116,10 @@ class ProfileWorker:
 
         # Execute with retries
         final_status = False
+        final_result_msg = ""
         try:
             success, result_msg = self.retry_manager.execute_with_retry(_single_attempt, stop_event=self._stop_event)
+            final_result_msg = result_msg
             self.update_state(AutomationState.SUCCESS, f"Link -> {result_msg}")
             
             if self.task_type in ["Auto Posting", "Auto Listing", "Auto Random Posting"] and str(result_msg).startswith("http"):
@@ -128,17 +130,21 @@ class ProfileWorker:
                 
             final_status = True
         except AutomationStopped:
+            final_result_msg = "User manually stopped automation."
             self.update_state(AutomationState.STOPPED)
             update_row_status(self.task_type, row_number, "Failed (Stopped)")
         except PermanentError as e:
+            final_result_msg = str(e)
             self._log_failure(profile_id, row_number, "PermanentError", str(e))
             self.update_state(AutomationState.FAILED_PERMANENT, str(e))
             update_row_status(self.task_type, row_number, f"Failed: {str(e)}")
         except RetryableError as e:
+            final_result_msg = f"Max retries reached: {str(e)}"
             self._log_failure(profile_id, row_number, "RetryableError (Max Retries)", str(e))
             self.update_state(AutomationState.FAILED_RETRYABLE, f"Max retries reached: {str(e)}")
             update_row_status(self.task_type, row_number, f"Failed (Timeout/Retryable): {str(e)}")
         except Exception as e:
+            final_result_msg = f"Unexpected Exception: {str(e)}"
             self._log_failure(profile_id, row_number, type(e).__name__, str(e))
             self.update_state(AutomationState.FAILED_PERMANENT, f"Unexpected Exception: {str(e)}")
             update_row_status(self.task_type, row_number, f"Failed: {str(e)}")
@@ -146,6 +152,6 @@ class ProfileWorker:
             self.log("Stopping profile...")
             stop_profile(profile_id)
             self._stop_event.wait(3)
-            self.completion_callback(self.post, final_status)
+            self.completion_callback(self.post, final_status, final_result_msg)
 
 

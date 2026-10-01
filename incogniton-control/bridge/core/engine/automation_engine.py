@@ -23,8 +23,11 @@ class AutomationEngine:
 
         logger_callback(f"--- Starting Automation Engine ({task_type}) with {self.max_workers} concurrent profiles ---")
 
-        def task_completion_hook(post, success):
-            completion_callback(post, success)
+        def task_completion_hook(post, success, result_msg=""):
+            try:
+                completion_callback(post, success, result_msg)
+            except TypeError:
+                completion_callback(post, success)
 
         for post in posts:
             worker = ProfileWorker(
@@ -64,13 +67,17 @@ class AutomationEngine:
                 return
             logger_callback("Stopping Automation Engine... signaling workers.")
             
-            # Cancel any futures that haven't started yet
-            for future in self.futures:
-                future.cancel()
-                
-            # Signal running workers to stop
-            for worker in self.workers:
-                worker.stop()
+            # Cancel any futures that haven't started yet and signal running ones
+            for worker, future in zip(self.workers, self.futures):
+                if future.cancel():
+                    # Task was successfully cancelled before starting, manually trigger callback
+                    try:
+                        worker.completion_callback(worker.post, False, "Cancelled before starting")
+                    except TypeError:
+                        # Fallback for old signature
+                        worker.completion_callback(worker.post, False)
+                else:
+                    worker.stop()
                 
             # Note: We do NOT call executor.shutdown() here.
             # The monitor_completion thread is already waiting on it and will

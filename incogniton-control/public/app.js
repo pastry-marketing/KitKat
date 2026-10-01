@@ -1,12 +1,12 @@
 import { cloudApi, getCloudSession, isCloudMode, signIn, signOut, signUp } from "./cloud-api.js";
 window.addEventListener("error", (e) => {
   const container = document.getElementById("toastRegion");
-  if (container) container.innerHTML += `<div class="toast error"><strong>JS Error</strong><span>${e.message}</span></div>`;
+  if (container) container.insertAdjacentHTML("beforeend", `<div class="toast error"><strong>JS Error</strong><span>${e.message}</span></div>`);
   else alert("JS Error: " + e.message);
 });
 window.addEventListener("unhandledrejection", (e) => {
   const container = document.getElementById("toastRegion");
-  if (container) container.innerHTML += `<div class="toast error"><strong>Async Error</strong><span>${e.reason?.message || e.reason}</span></div>`;
+  if (container) container.insertAdjacentHTML("beforeend", `<div class="toast error"><strong>Async Error</strong><span>${e.reason?.message || e.reason}</span></div>`);
   else alert("Async Error: " + (e.reason?.message || e.reason));
 });
 const state = {
@@ -317,6 +317,11 @@ async function loadProfiles({ quiet = false } = {}) {
 
 async function hydrateStatuses() {
   const queue = [...state.profiles];
+  let renderTimeout;
+  const debouncedRender = () => {
+    clearTimeout(renderTimeout);
+    renderTimeout = setTimeout(() => renderProfiles(), 500);
+  };
   const worker = async () => {
     while (queue.length) {
       const profile = queue.shift();
@@ -326,10 +331,12 @@ async function hydrateStatuses() {
       } catch {
         profile.status = "available";
       }
-      renderProfiles();
+      debouncedRender();
     }
   };
   await Promise.all(Array.from({ length: Math.min(6, queue.length) }, worker));
+  clearTimeout(renderTimeout);
+  renderProfiles();
 }
 
 function toast(title, message, type = "success") {

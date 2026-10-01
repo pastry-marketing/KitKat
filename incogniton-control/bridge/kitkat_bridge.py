@@ -181,6 +181,9 @@ class SupabaseSession:
         })
 
     def sign_in(self) -> None:
+        import sys
+        if not sys.stdin.isatty():
+            raise BridgeError("KitKat session expired or missing. Please run 'Start KitKat Bridge.bat' manually to sign in.")
         print()
         print("Connect this PC to KitKat")
         print("Use your own account from the KitKat website.")
@@ -265,9 +268,12 @@ class IncognitonClient:
         if isinstance(result, list):
             return result
         if isinstance(result, dict):
-            profiles = result.get("profileData") or result.get("profiles") or []
-            if isinstance(profiles, list):
-                return profiles
+            if "profileData" in result:
+                return result["profileData"]
+            if "profiles" in result:
+                return result["profiles"]
+            # If we got a dict but no profiles key, something is wrong with Incogniton API response
+            raise BridgeError("Incogniton returned a dict without profileData or profiles")
         raise BridgeError("Incogniton returned an unexpected profile list")
 
 
@@ -493,7 +499,7 @@ class KitKatBridge:
         def logger(msg):
             log(f"[Task {task_id[:8]}] {msg}")
 
-        def completion_cb(post, success):
+        def completion_cb(post, success, result_msg=""):
             nonlocal completed_count, failed_count
             with progress_lock:
                 if success:
@@ -501,14 +507,20 @@ class KitKatBridge:
                 else:
                     failed_count += 1
                 progress = {"total": total, "completed": completed_count, "failed": failed_count}
-                self._report_task_progress(task_id, "running", progress)
+            self._report_task_progress(task_id, "running", progress)
 
             profile_name = get_val(post, "profile name", "name", "profile") or "Unknown"
-            self._report_result(task_id, {
+            result_payload = {
                 "profile_name": str(profile_name)[:200],
                 "row_number": post.get("rowNumber"),
                 "status": "success" if success else "failed",
-            })
+            }
+            if success and result_msg:
+                result_payload["post_link"] = str(result_msg)
+            elif not success and result_msg:
+                result_payload["error_message"] = str(result_msg)
+            
+            self._report_result(task_id, result_payload)
 
         def on_finished():
             with self._task_lock:
@@ -659,6 +671,8 @@ class KitKatBridge:
                     password=get_val(post, "password") or "",
                     full_name=get_val(post, "full name", "name") or "",
                     logger_callback=logger,
+                    state_callback=state_callback,
+                    stop_event=stop_event,
                 )
             return wrapper
 
@@ -755,9 +769,11 @@ class KitKatBridge:
             result = self.incogniton.request("/profile/clone", "POST", request_body, 120)
             self.sync_profiles()
             return result
-        result = self.incogniton.request(f"/profile/delete/{encoded}", timeout=60)
-        self.sync_profiles()
-        return result
+        if action == "delete_profile":
+            result = self.incogniton.request(f"/profile/delete/{encoded}", timeout=60)
+            self.sync_profiles()
+            return result
+        raise BridgeError(f"Action '{action}' is not fully implemented in the bridge")
 
     def process_commands(self) -> int:
         commands = self.db.request("commands", query=[
@@ -831,6 +847,14 @@ class KitKatBridge:
 
 
 def main() -> int:
+    import socket
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.bind(("127.0.0.1", 35010))
+    except socket.error:
+        print("ERROR: KitKat Bridge is already running! (Port 35010 is bound).")
+        print("Please close the existing bridge before starting a new one.")
+        return 1
     print("KitKat Bridge")
     print("KitKat cloud ↔ this PC ↔ Incogniton")
     print()
