@@ -1,7 +1,7 @@
 """KitKat's lightweight Windows bridge for the Incogniton local API.
 
 The bridge deliberately contains no Google Sheets or legacy desktop UI code.
-It signs in as a KitKat Super Admin, polls that user's agent queue, executes
+It signs in as the KitKat user on that PC, polls that user's agent queue, executes
 profile commands against Incogniton on this PC, and syncs safe profile fields
 back to KitKat.
 """
@@ -182,7 +182,7 @@ class SupabaseSession:
     def sign_in(self) -> None:
         print()
         print("Connect this PC to KitKat")
-        print("Use the Super Admin account that you use on the KitKat website.")
+        print("Use your own account from the KitKat website.")
         email = input("Email: ").strip()
         password = getpass.getpass("Password: ")
         if not email or not password:
@@ -286,6 +286,8 @@ class KitKatBridge:
         self.incogniton = IncognitonClient()
         self.workspace_id = ""
         self.user_id = ""
+        self.role = ""
+        self.allowed_groups: set[str] | None = set()
         self.agent: dict[str, Any] = {}
         self.last_heartbeat = 0.0
         self.last_sync = 0.0
@@ -305,9 +307,21 @@ class KitKatBridge:
         if not memberships:
             raise BridgeError("Open KitKat in the browser and finish creating the workspace first")
         membership = memberships[0]
-        if membership.get("role") != "super_admin":
-            raise BridgeError("The PC bridge must currently be paired by a KitKat Super Admin")
         self.workspace_id = str(membership["workspace_id"])
+        self.role = str(membership.get("role") or "")
+        if self.role == "super_admin":
+            self.allowed_groups = None
+        else:
+            access_rows = self.db.request("member_group_access", query=[
+                ("select", "group_name"),
+                ("workspace_id", f"eq.{self.workspace_id}"),
+                ("user_id", f"eq.{self.user_id}"),
+            ]) or []
+            self.allowed_groups = {
+                str(row.get("group_name") or "").strip()
+                for row in access_rows
+                if str(row.get("group_name") or "").strip()
+            }
         self.agent = self._find_or_create_agent()
         self.heartbeat()
 
@@ -376,11 +390,14 @@ class KitKatBridge:
 
     def sync_profiles(self) -> int:
         profiles = self.incogniton.profiles()
-        rows = [
-            row
-            for profile in profiles
-            if (row := self._profile_row(profile, self.workspace_id, str(self.agent["id"]))) is not None
-        ]
+        rows = []
+        for profile in profiles:
+            row = self._profile_row(profile, self.workspace_id, str(self.agent["id"]))
+            if row is None:
+                continue
+            if self.allowed_groups is not None and row["group_name"] not in self.allowed_groups:
+                continue
+            rows.append(row)
         if rows:
             self.db.request("browser_profiles", "POST", [("on_conflict", "workspace_id,profile_id")], rows,
                             "resolution=merge-duplicates,return=minimal")
@@ -430,10 +447,13 @@ class KitKatBridge:
             name = str(payload.get("profile_name") or "").strip()
             if not name:
                 raise BridgeError("Profile name is required")
+            group_name = str(payload.get("profile_group") or "Unassigned").strip()
+            if self.allowed_groups is not None and group_name not in self.allowed_groups:
+                raise BridgeError(f"Your KitKat account does not have access to group '{group_name}'")
             request_body = {
                 "profile_name": name,
                 "platform": payload.get("platform") or "windows",
-                "profile_group": str(payload.get("profile_group") or "Unassigned").strip(),
+                "profile_group": group_name,
             }
             if str(payload.get("userAgent") or "").strip():
                 request_body["userAgent"] = str(payload["userAgent"]).strip()
@@ -508,8 +528,11 @@ class KitKatBridge:
 
     def run(self) -> None:
         self.setup()
-        log(f"Connected as {self.session.user.get('email') or 'Super Admin'}")
+        log(f"Connected as {self.session.user.get('email') or 'KitKat user'}")
         log(f"PC registered as {self.agent.get('name')}")
+        if self.allowed_groups is not None:
+            group_summary = ", ".join(sorted(self.allowed_groups)) or "none assigned"
+            log(f"Allowed profile groups: {group_summary}")
         try:
             count = self.sync_profiles()
             log(f"Incogniton connected — {count} profiles synced")

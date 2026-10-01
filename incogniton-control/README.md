@@ -10,7 +10,7 @@ Google Sheets and the old ND Full Automated desktop UI are not part of this arch
 
 ## Run the PC bridge
 
-Open `bridge/Start KitKat Bridge.bat` on the Incogniton PC and sign in once with the KitKat Super Admin account. See `bridge/README.md` for the full setup.
+Every user opens `bridge/Start KitKat Bridge.bat` on their own Incogniton PC and signs in once with their own KitKat account. See `bridge/README.md` for the full setup.
 
 ## Current capabilities
 

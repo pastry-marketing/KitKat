@@ -9,7 +9,9 @@ It does **not** use Google Sheets and does **not** run the old ND Full Automated
 1. Install Python 3 if it is not already installed.
 2. Open Incogniton and enable its local API on port `35000`.
 3. Double-click `Start KitKat Bridge.bat`.
-4. Sign in once with the KitKat Super Admin account.
+4. Sign in once with your own KitKat account.
+
+Every KitKat user installs the bridge on the PC where they run Incogniton. The bridge registers that PC under the signed-in user and only syncs profile groups assigned to that user by Super Admin.
 
 The password is never saved. Supabase returns a refresh session which is protected with Windows Data Protection API and stored at:
 
