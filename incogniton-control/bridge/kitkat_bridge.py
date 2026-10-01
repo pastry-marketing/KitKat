@@ -47,6 +47,16 @@ class HttpError(BridgeError):
         self.data = data
 
 
+class IncognitonAppError(BridgeError):
+    """A definitive application-level error returned by Incogniton.
+
+    Incogniton answered (HTTP 200) with ``{"status": "error"}``. Retrying the
+    exact same call will get the exact same answer, so these must NOT be retried
+    like transient network failures are.
+    """
+    pass
+
+
 class DataBlob(ctypes.Structure):
     _fields_ = [("size", ctypes.c_ulong), ("data", ctypes.POINTER(ctypes.c_ubyte))]
 
@@ -93,6 +103,16 @@ def _windows_unprotect(value: str) -> str:
         return ctypes.string_at(destination.data, destination.size).decode("utf-8")
     finally:
         ctypes.windll.kernel32.LocalFree(destination.data)
+
+
+def _means_already_running(message: str) -> bool:
+    text = (message or "").lower()
+    return any(phrase in text for phrase in ("already open", "already running", "already launched", "already started"))
+
+
+def _means_already_stopped(message: str) -> bool:
+    text = (message or "").lower()
+    return any(phrase in text for phrase in ("already closed", "already stopped", "not open", "not running", "is not open", "not launched"))
 
 
 def _decode_response(response: Any) -> Any:
@@ -251,13 +271,19 @@ class IncognitonClient:
             try:
                 result = request_json(f"{INCOGNITON_URL}{endpoint}", method, body=body, timeout=timeout)
                 if isinstance(result, dict) and result.get("status") in ("error", "fail"):
-                    raise BridgeError(str(result.get("message") or "Incogniton returned an error"))
+                    raise IncognitonAppError(str(result.get("message") or "Incogniton returned an error"))
                 return result
+            except IncognitonAppError:
+                # Incogniton gave a definitive answer — retrying is pointless and
+                # just stalls the command loop. Surface it to the caller at once.
+                raise
             except HttpError as error:
                 last_error = error
                 if error.status not in self.RETRYABLE_STATUSES:
                     raise
             except BridgeError as error:
+                # Connection refused / timeout / reset — Incogniton may still be
+                # coming up, so these are worth a short retry.
                 last_error = error
             if attempt < 2:
                 time.sleep(2 * (attempt + 1))
@@ -747,11 +773,26 @@ class KitKatBridge:
             raise BridgeError("The command is missing an Incogniton profile ID")
         encoded = urllib.parse.quote(profile_id, safe="")
         if action == "launch_profile":
-            result = self.incogniton.request(f"/profile/launch/{encoded}", timeout=120)
+            try:
+                result = self.incogniton.request(f"/profile/launch/{encoded}", timeout=120)
+            except IncognitonAppError as error:
+                # The profile is already running — that is the state we wanted, so
+                # report success instead of a failure.
+                if not _means_already_running(str(error)):
+                    raise
+                log(f"Profile {profile_id} is already open")
+                result = {"status": "ok", "message": "Profile already open"}
             self.sync_profiles()
             return result
         if action == "stop_profile":
-            result = self.incogniton.request(f"/profile/stop/{encoded}", timeout=45)
+            try:
+                result = self.incogniton.request(f"/profile/stop/{encoded}", timeout=45)
+            except IncognitonAppError as error:
+                # The profile is already stopped — that is the state we wanted.
+                if not _means_already_stopped(str(error)):
+                    raise
+                log(f"Profile {profile_id} is already stopped")
+                result = {"status": "ok", "message": "Profile already stopped"}
             self.sync_profiles()
             return result
         if action == "clone_profile":

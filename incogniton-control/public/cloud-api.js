@@ -208,6 +208,12 @@ export async function cloudApi(path, options = {}) {
   }
   const actionMatch = path.match(/^\/api\/profiles\/([^/]+)\/(launch|stop|clone)$/);
   if (actionMatch) return queueCommand(`${actionMatch[2]}_profile`, decodeURIComponent(actionMatch[1]), body);
+  const commandMatch = path.match(/^\/api\/commands\/([^/]+)$/);
+  if (commandMatch && method === "GET") {
+    const response = await supabase.from("commands").select("status,error_message").eq("workspace_id", membership.workspace_id).eq("id", decodeURIComponent(commandMatch[1])).single();
+    if (response.error) fail(response.error);
+    return response.data;
+  }
   const profileMatch = path.match(/^\/api\/profiles\/([^/]+)$/);
   if (profileMatch && method === "DELETE") return queueCommand("delete_profile", decodeURIComponent(profileMatch[1]));
 

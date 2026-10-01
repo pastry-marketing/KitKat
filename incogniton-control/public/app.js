@@ -726,6 +726,25 @@ function setModal(element, open) {
   if (open) setTimeout(() => $("input, button", element)?.focus(), 20);
 }
 
+async function waitForCommand(commandId, { timeoutMs = 150000, intervalMs = 2000 } = {}) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+    let result;
+    try {
+      result = await api(`/api/commands/${encodeURIComponent(commandId)}`);
+    } catch (error) {
+      // A transient read failure shouldn't abort the wait — keep polling.
+      continue;
+    }
+    const status = String(result?.status || "").toLowerCase();
+    if (status === "completed") return result;
+    if (status === "failed") throw new Error(result?.error_message || "The bridge reported a failure");
+    if (status === "cancelled") throw new Error("The command was cancelled");
+  }
+  throw new Error("Timed out waiting for KitKat Bridge. Make sure it is running on the Incogniton PC.");
+}
+
 async function launchOrStop(id, action, button) {
   const profile = state.profiles.find((item) => item.id === id);
   if (!profile) return;
@@ -733,13 +752,18 @@ async function launchOrStop(id, action, button) {
   profile.status = action === "launch" ? "launching" : "stopping";
   renderProfiles();
   try {
-    await api(`/api/profiles/${encodeURIComponent(id)}/${action}`, { method: "POST" });
+    const response = await api(`/api/profiles/${encodeURIComponent(id)}/${action}`, { method: "POST" });
+    // In cloud mode the request only *queues* a command for the bridge; wait for
+    // the bridge to actually run it before reporting success. In local mode the
+    // call is synchronous and returns no command id, so there is nothing to wait on.
+    const commandId = response?.command?.id;
+    if (commandId) await waitForCommand(commandId);
     profile.status = action === "launch" ? "launched" : "ready";
     toast(action === "launch" ? "Profile opened" : "Profile stopped", profile.name);
     addActivity(action === "launch" ? "Opened profile" : "Stopped profile", profile.name);
   } catch (error) {
     profile.status = previousStatus;
-    toast("Action failed", error.message, "error");
+    toast(action === "launch" ? "Couldn’t open profile" : "Couldn’t stop profile", error.message, "error");
     addActivity("Action failed", `${profile.name}: ${error.message}`, "error");
   }
   renderProfiles();
