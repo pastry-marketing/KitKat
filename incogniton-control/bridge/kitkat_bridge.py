@@ -22,6 +22,7 @@ import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+import threading
 
 
 SUPABASE_URL = "https://mqxpsagrjbwryqgiyzfr.supabase.co"
@@ -278,6 +279,10 @@ class KitKatBridge:
         "stop_profile",
         "clone_profile",
         "delete_profile",
+        "start_automation",
+        "stop_automation",
+        "fetch_sheet_rows",
+        "save_settings",
     }
 
     def __init__(self) -> None:
@@ -291,6 +296,8 @@ class KitKatBridge:
         self.agent: dict[str, Any] = {}
         self.last_heartbeat = 0.0
         self.last_sync = 0.0
+        self._running_tasks = {}  # task_id -> AutomationEngine
+        self._task_lock = threading.Lock()
 
     def setup(self) -> None:
         self.session.ensure()
@@ -435,6 +442,228 @@ class KitKatBridge:
         }
         self.db.request("commands", "PATCH", [("id", f"eq.{command_id}")], body, "return=minimal")
 
+    def _report_task_progress(self, task_id, status, progress=None, error=None):
+        """Report automation task progress back to Supabase."""
+        body = {"status": status}
+        if progress:
+            body["progress"] = progress
+        if error:
+            body["error_message"] = str(error)[:1000]
+        if status == "running" and "started_at" not in body:
+            body["started_at"] = utc_now()
+        if status in ("completed", "failed", "stopped"):
+            body["completed_at"] = utc_now()
+        try:
+            self.db.request("nd_automation_tasks", "PATCH",
+                           [("id", f"eq.{task_id}")], body, "return=minimal")
+        except Exception as err:
+            log(f"Failed to update task progress: {err}")
+
+    def _report_result(self, task_id, result_data):
+        """Insert or update an individual automation result row."""
+        result_data["task_id"] = task_id
+        result_data["workspace_id"] = self.workspace_id
+        try:
+            self.db.request("nd_automation_results", "POST", body=result_data,
+                           prefer="return=minimal")
+        except Exception as err:
+            log(f"Failed to report result: {err}")
+
+    def _run_automation_task(self, task_id, task_type, config, rows, concurrency):
+        """Execute an automation task using the ND engine (runs in background thread)."""
+        from core.engine.automation_engine import AutomationEngine
+        from core.automation import browser_manager
+        from core.automation.profile_builder import get_val
+        from core.services import sheets_service
+        from core.config import set_setting
+
+        # Apply settings from config
+        if config.get("apps_script_url"):
+            set_setting("apps_script_url", config["apps_script_url"])
+        if config.get("browser_provider"):
+            set_setting("browser_provider", config["browser_provider"])
+
+        self._report_task_progress(task_id, "running", {"total": len(rows), "completed": 0, "failed": 0})
+
+        completed_count = 0
+        failed_count = 0
+        total = len(rows)
+        progress_lock = threading.Lock()
+
+        def logger(msg):
+            log(f"[Task {task_id[:8]}] {msg}")
+
+        def completion_cb(post, success):
+            nonlocal completed_count, failed_count
+            with progress_lock:
+                if success:
+                    completed_count += 1
+                else:
+                    failed_count += 1
+                progress = {"total": total, "completed": completed_count, "failed": failed_count}
+                self._report_task_progress(task_id, "running", progress)
+
+            profile_name = get_val(post, "profile name", "name", "profile") or "Unknown"
+            self._report_result(task_id, {
+                "profile_name": str(profile_name)[:200],
+                "row_number": post.get("rowNumber"),
+                "status": "success" if success else "failed",
+            })
+
+        def on_finished():
+            with self._task_lock:
+                self._running_tasks.pop(task_id, None)
+            final_status = "completed" if failed_count == 0 else ("failed" if completed_count == 0 else "completed")
+            self._report_task_progress(task_id, final_status,
+                                       {"total": total, "completed": completed_count, "failed": failed_count})
+            logger(f"Automation finished: {completed_count}/{total} succeeded")
+            self.sync_profiles()
+
+        # Build the flow wrapper based on task_type
+        flow_wrapper = self._build_flow_wrapper(task_type, config)
+        if not flow_wrapper:
+            self._report_task_progress(task_id, "failed", error=f"Unknown task type: {task_type}")
+            return {"error": f"Unknown task type: {task_type}"}
+
+        # Ensure browser is running
+        try:
+            if not browser_manager.is_running():
+                browser_manager.launch()
+                browser_manager.wait_for_ready()
+        except Exception as err:
+            self._report_task_progress(task_id, "failed", error=str(err))
+            return {"error": str(err)}
+
+        engine = AutomationEngine(max_workers=concurrency)
+        with self._task_lock:
+            self._running_tasks[task_id] = engine
+
+        engine.start(
+            task_type=self._sheet_name_for_task(task_type),
+            posts=rows,
+            flow_wrapper_function=flow_wrapper,
+            logger_callback=logger,
+            completion_callback=completion_cb,
+            master_ui_context=None,
+            on_finished_callback=on_finished,
+        )
+        return {"started": True, "total_rows": len(rows)}
+
+    @staticmethod
+    def _sheet_name_for_task(task_type):
+        mapping = {
+            "auto_posting": "Auto Posting",
+            "auto_listing": "Auto Listing",
+            "auto_warmup": "Auto Warmup",
+            "auto_random_posting": "Auto Random Posting",
+            "fb_listing": "FB Listings",
+            "nd_account_creation": "ND Acc Creation",
+            "bulk_create": "Incog Profile Creation",
+        }
+        return mapping.get(task_type, task_type)
+
+    def _build_flow_wrapper(self, task_type, config):
+        """Return a flow wrapper function for the given task type."""
+        if task_type == "auto_posting":
+            from core.automation.auto_poster import run_auto_posting_flow
+            target_names = config.get("target_names", "")
+            spammers = config.get("spammers", "")
+            def wrapper(debug_url, post, logger, state_callback, stop_event):
+                from core.automation.profile_builder import get_val
+                return run_auto_posting_flow(
+                    debug_url=debug_url,
+                    post_text=get_val(post, "post text", "post", "text", "content") or "",
+                    visibility_pref=get_val(post, "visibility", "audience") or "",
+                    picture_val=get_val(post, "picture", "image", "photo", "media") or "",
+                    logger_callback=logger,
+                    target_names=target_names,
+                    email_val=get_val(post, "email") or "",
+                    password_val=get_val(post, "password") or "",
+                    state_callback=state_callback,
+                    stop_event=stop_event,
+                    random_post_text=get_val(post, "random post", "random") or "",
+                    spammers_val=spammers,
+                    area_val=get_val(post, "area") or "",
+                )
+            return wrapper
+
+        if task_type == "auto_listing":
+            from core.automation.auto_listing import run_auto_listing_flow
+            def wrapper(debug_url, post, logger, state_callback, stop_event):
+                from core.automation.profile_builder import get_val
+                return run_auto_listing_flow(
+                    debug_url=debug_url,
+                    list_title=get_val(post, "title", "listing title") or "",
+                    picture_val=get_val(post, "picture", "image", "photo", "media") or "",
+                    price_val=get_val(post, "price") or "",
+                    description_val=get_val(post, "description") or "",
+                    category_val=get_val(post, "category") or "",
+                    logger_callback=logger,
+                    email_val=get_val(post, "email") or "",
+                    password_val=get_val(post, "password") or "",
+                    state_callback=state_callback,
+                    stop_event=stop_event,
+                )
+            return wrapper
+
+        if task_type == "auto_warmup":
+            from core.automation.auto_warmup import run_auto_warmup_flow
+            def wrapper(debug_url, post, logger, state_callback, stop_event):
+                from core.automation.profile_builder import get_val
+                return run_auto_warmup_flow(
+                    debug_url=debug_url,
+                    logger_callback=logger,
+                    email_val=get_val(post, "email") or "",
+                    password_val=get_val(post, "password") or "",
+                    state_callback=state_callback,
+                    stop_event=stop_event,
+                )
+            return wrapper
+
+        if task_type == "auto_random_posting":
+            from core.automation.auto_random_poster import run_auto_random_posting_flow
+            def wrapper(debug_url, post, logger, state_callback, stop_event):
+                from core.automation.profile_builder import get_val
+                return run_auto_random_posting_flow(
+                    debug_url=debug_url,
+                    post_text=get_val(post, "post text", "post", "text", "content") or "",
+                    visibility_pref=get_val(post, "visibility", "audience") or "",
+                    picture_val=get_val(post, "picture", "image", "photo", "media") or "",
+                    logger_callback=logger,
+                    email_val=get_val(post, "email") or "",
+                    password_val=get_val(post, "password") or "",
+                    state_callback=state_callback,
+                    stop_event=stop_event,
+                )
+            return wrapper
+
+        if task_type == "fb_listing":
+            from core.automation.fb_listing import run_fb_listing_flow
+            def wrapper(debug_url, post, logger, state_callback, stop_event):
+                return run_fb_listing_flow(
+                    debug_url=debug_url,
+                    post=post,
+                    logger_callback=logger,
+                    state_callback=state_callback,
+                    stop_event=stop_event,
+                )
+            return wrapper
+
+        if task_type == "nd_account_creation":
+            from core.automation.nd_account_creator import run_nd_creation_flow
+            def wrapper(debug_url, post, logger, state_callback, stop_event):
+                from core.automation.profile_builder import get_val
+                return run_nd_creation_flow(
+                    debug_url=debug_url,
+                    email=get_val(post, "email") or "",
+                    password=get_val(post, "password") or "",
+                    full_name=get_val(post, "full name", "name") or "",
+                    logger_callback=logger,
+                )
+            return wrapper
+
+        return None
+
     def _execute(self, command: dict[str, Any]) -> Any:
         action = str(command.get("action") or "")
         profile_id = str(command.get("profile_id") or "")
@@ -443,6 +672,46 @@ class KitKatBridge:
             raise BridgeError(f"'{action}' is not installed in the lightweight bridge yet")
         if action == "sync_profiles":
             return {"profiles_synced": self.sync_profiles()}
+
+        if action == "fetch_sheet_rows":
+            from core.services.sheets_service import fetch_pending_rows, fetch_pending_profiles, fetch_pending_nd_accounts
+            sheet_name = str(payload.get("sheet_name") or "")
+            if sheet_name in ("Incog Profile Creation", "bulk_create"):
+                rows = fetch_pending_profiles()
+            elif sheet_name in ("ND Acc Creation", "nd_account_creation"):
+                rows = fetch_pending_nd_accounts()
+            else:
+                rows = fetch_pending_rows(sheet_name)
+            return {"rows": rows or [], "count": len(rows or [])}
+
+        if action == "save_settings":
+            from core.config import set_setting
+            for key, value in payload.items():
+                set_setting(key, value)
+            return {"saved": True}
+
+        if action == "start_automation":
+            task_id = str(payload.get("task_id") or command.get("id") or "")
+            task_type = str(payload.get("task_type") or "")
+            rows = payload.get("rows") or []
+            concurrency = int(payload.get("concurrency") or 3)
+            task_config = payload.get("config") or {}
+            if not task_type:
+                raise BridgeError("task_type is required")
+            if not rows:
+                raise BridgeError("No rows to process")
+            return self._run_automation_task(task_id, task_type, task_config, rows, concurrency)
+
+        if action == "stop_automation":
+            task_id = str(payload.get("task_id") or "")
+            with self._task_lock:
+                engine = self._running_tasks.get(task_id)
+            if engine:
+                engine.stop(log)
+                self._report_task_progress(task_id, "stopped")
+                return {"stopped": True}
+            return {"stopped": False, "message": "Task not found or already finished"}
+
         if action == "create_profile":
             name = str(payload.get("profile_name") or "").strip()
             if not name:

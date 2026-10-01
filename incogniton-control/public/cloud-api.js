@@ -251,5 +251,66 @@ export async function cloudApi(path, options = {}) {
     if (response.error) fail(response.error);
     return queueCommand("cancel_run", response.data.profile_id, { runId });
   }
+  // ── ND Automation Routes ──────────────────────────────────────────────
+
+  // Sheet config
+  if (path === "/api/sheet-config" && method === "GET") {
+    const response = await supabase.from("sheet_configs").select("*").eq("workspace_id", membership.workspace_id).maybeSingle();
+    if (response.error) fail(response.error);
+    return response.data || {};
+  }
+  if (path === "/api/sheet-config" && method === "POST") {
+    const payload = { workspace_id: membership.workspace_id, ...body, created_by: session.user.id, updated_at: new Date().toISOString() };
+    const response = await supabase.from("sheet_configs").upsert(payload, { onConflict: "workspace_id" }).select().single();
+    if (response.error) fail(response.error);
+    return response.data;
+  }
+
+  // ND automation tasks
+  if (path === "/api/nd/tasks" && method === "GET") {
+    const response = await supabase.from("nd_automation_tasks").select("*").eq("workspace_id", membership.workspace_id).order("created_at", { ascending: false }).limit(50);
+    if (response.error) fail(response.error);
+    return { tasks: response.data };
+  }
+  if (path === "/api/nd/tasks" && method === "POST") {
+    const response = await supabase.from("nd_automation_tasks").insert({ workspace_id: membership.workspace_id, agent_id: body.agent_id || null, task_type: body.task_type, sheet_name: body.sheet_name || "", concurrency: body.concurrency || 3, config: body.config || {}, requested_by: session.user.id }).select().single();
+    if (response.error) fail(response.error);
+    return response.data;
+  }
+  const ndTaskMatch = path.match(/^\/api\/nd\/tasks\/([^/]+)$/);
+  if (ndTaskMatch && method === "PATCH") {
+    const response = await supabase.from("nd_automation_tasks").update(body).eq("id", decodeURIComponent(ndTaskMatch[1])).select().single();
+    if (response.error) fail(response.error);
+    return response.data;
+  }
+  const ndResultsMatch = path.match(/^\/api\/nd\/tasks\/([^/]+)\/results$/);
+  if (ndResultsMatch && method === "GET") {
+    const response = await supabase.from("nd_automation_results").select("*").eq("task_id", decodeURIComponent(ndResultsMatch[1])).order("created_at", { ascending: true });
+    if (response.error) fail(response.error);
+    return { results: response.data };
+  }
+
+  // Queue bridge commands for ND automation
+  if (path === "/api/nd/fetch-rows" && method === "POST") {
+    return queueCommand("fetch_sheet_rows", null, { sheet_name: body.sheet_name });
+  }
+  if (path === "/api/nd/start" && method === "POST") {
+    const agentId = await activeAgent();
+    // Create the task record first
+    const taskResponse = await supabase.from("nd_automation_tasks").insert({ workspace_id: membership.workspace_id, agent_id: agentId, task_type: body.task_type, sheet_name: body.sheet_name || "", concurrency: body.concurrency || 3, config: body.config || {}, requested_by: session.user.id }).select().single();
+    if (taskResponse.error) fail(taskResponse.error);
+    // Queue the command to the bridge
+    await queueCommand("start_automation", null, { task_id: taskResponse.data.id, task_type: body.task_type, rows: body.rows, concurrency: body.concurrency || 3, config: body.config || {} });
+    return taskResponse.data;
+  }
+  if (path === "/api/nd/stop" && method === "POST") {
+    await queueCommand("stop_automation", null, { task_id: body.task_id });
+    return { stopped: true };
+  }
+  if (path === "/api/nd/save-settings" && method === "POST") {
+    return queueCommand("save_settings", null, body);
+  }
+
   throw new Error(`Unsupported cloud route: ${method} ${path}`);
 }
+

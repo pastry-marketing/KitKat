@@ -5,6 +5,7 @@ const state = {
   loading: true,
   profiles: [],
   filter: "all",
+  groupFilter: "all",
   search: "",
   menuFor: null,
   deleteTarget: null,
@@ -44,6 +45,8 @@ const els = {
   emptyTitle: $("#emptyTitle"),
   emptyMessage: $("#emptyMessage"),
   searchInput: $("#searchInput"),
+  groupFilterWrap: $("#groupFilterWrap"),
+  groupFilterSelect: $("#groupFilterSelect"),
   profileModal: $("#profileModal"),
   profileForm: $("#profileForm"),
   createSubmit: $("#createSubmit"),
@@ -152,11 +155,26 @@ function filteredProfiles() {
   const query = state.search.trim().toLowerCase();
   return state.profiles.filter((profile) => {
     const matchesSearch = !query || `${profile.name} ${profile.group} ${profile.id}`.toLowerCase().includes(query);
+    const matchesGroup = state.groupFilter === "all" || profile.group === state.groupFilter;
     const matchesFilter = state.filter === "all"
       || (state.filter === "running" && isRunning(profile.status))
       || (state.filter === "ready" && ["ready", "available"].includes(profile.status));
-    return matchesSearch && matchesFilter;
+    return matchesSearch && matchesGroup && matchesFilter;
   });
+}
+
+function renderProfileGroupFilter() {
+  const isSuperAdmin = state.currentUser?.role === "super_admin";
+  els.groupFilterWrap.classList.toggle("hidden", !isSuperAdmin);
+  if (!isSuperAdmin) state.groupFilter = "all";
+
+  const groups = availableGroups();
+  if (state.groupFilter !== "all" && !groups.includes(state.groupFilter)) state.groupFilter = "all";
+  els.groupFilterSelect.innerHTML = '<option value="all">All groups</option>' + groups
+    .map((group) => `<option value="${escapeHtml(group)}">${escapeHtml(group)}</option>`)
+    .join("");
+  els.groupFilterSelect.value = state.groupFilter;
+  els.groupFilterSelect.disabled = state.loading || groups.length === 0;
 }
 
 function actionMarkup(profile) {
@@ -179,6 +197,7 @@ function actionMarkup(profile) {
 }
 
 function renderProfiles() {
+  renderProfileGroupFilter();
   const profiles = filteredProfiles();
   els.loadingState.classList.toggle("hidden", !state.loading);
   els.profileTable.closest(".table-wrap").classList.toggle("hidden", state.loading || profiles.length === 0);
@@ -186,7 +205,7 @@ function renderProfiles() {
   els.emptyState.classList.toggle("hidden", state.loading || profiles.length > 0);
 
   if (!state.loading && profiles.length === 0) {
-    const isSearch = Boolean(state.search || state.filter !== "all");
+    const isSearch = Boolean(state.search || state.filter !== "all" || state.groupFilter !== "all");
     els.emptyTitle.textContent = isSearch ? "No matching profiles" : (state.connected ? "No profiles yet" : "Connection needed");
     els.emptyMessage.textContent = isSearch
       ? "Try another search or clear the current filter."
@@ -751,12 +770,99 @@ function handleProfileAction(event) {
   }
 }
 
-$$('.nav-item[data-view]').forEach((button) => button.addEventListener("click", () => {
+$$// ND Automation logic
+async function fetchSheetRows(taskType) {
+  try {
+    const res = await api('/api/nd/fetch-rows', { method: 'POST', body: JSON.stringify({ taskType }) });
+    toast('Fetching rows', "Queued fetch for " + taskType);
+  } catch (err) {
+    toast('Fetch failed', err.message, 'error');
+  }
+}
+
+async function startAutomation(taskType) {
+  try {
+    const concurrency = document.getElementById(taskType + '-concurrency')?.value || 3;
+    const config = { concurrency: parseInt(concurrency, 10) };
+    if (taskType === 'ndAutoPosting') config.targetNames = document.getElementById('ndAutoPosting-targetNames')?.value;
+    if (taskType === 'ndAutoListing') config.spammers = document.getElementById('ndAutoListing-spammers')?.value;
+    
+    await api('/api/nd/start', { method: 'POST', body: JSON.stringify({ taskType, config }) });
+    toast('Automation Started', "Started " + taskType);
+  } catch (err) {
+    toast('Start failed', err.message, 'error');
+  }
+}
+
+async function stopAutomation(taskId) {
+  try {
+    await api('/api/nd/stop', { method: 'POST', body: JSON.stringify({ taskId }) });
+    toast('Automation Stopped', 'Queued stop command');
+  } catch (err) {
+    toast('Stop failed', err.message, 'error');
+  }
+}
+
+async function loadSheetSettings() {
+  try {
+    const data = await api('/api/sheet-config');
+    if (data.config) {
+      if(document.getElementById('sheet-gas-url')) document.getElementById('sheet-gas-url').value = data.config.gasUrl || '';
+      if(document.getElementById('sheet-browser-provider')) document.getElementById('sheet-browser-provider').value = data.config.provider || 'incogniton';
+      if(document.getElementById('sheet-adspower-key')) document.getElementById('sheet-adspower-key').value = data.config.adsPowerKey || '';
+      if(document.getElementById('sheet-profile-os')) document.getElementById('sheet-profile-os').value = data.config.os || 'windows';
+    }
+  } catch (err) {
+    console.error('Failed to load sheet settings', err);
+  }
+}
+
+async function saveSheetSettings() {
+  try {
+    const config = {
+      gasUrl: document.getElementById('sheet-gas-url')?.value,
+      provider: document.getElementById('sheet-browser-provider')?.value,
+      adsPowerKey: document.getElementById('sheet-adspower-key')?.value,
+      os: document.getElementById('sheet-profile-os')?.value
+    };
+    await api('/api/sheet-config', { method: 'POST', body: JSON.stringify({ config }) });
+    toast('Settings saved', 'Sheet settings updated successfully');
+  } catch (err) {
+    toast('Save failed', err.message, 'error');
+  }
+}
+
+function renderSheetRows(rows, containerId) {
+  const tbody = document.getElementById(containerId);
+  if (!tbody) return;
+  tbody.innerHTML = rows.map(r => "<tr><td>" + escapeHtml(r.id) + "</td><td><pre style='margin:0; font-size:10px;'>" + escapeHtml(JSON.stringify(r.data)) + "</pre></td><td>" + escapeHtml(r.status) + "</td></tr>").join('');
+}
+
+document.addEventListener('click', e => {
+  if (e.target.closest('.fetch-rows-btn')) {
+    const task = e.target.closest('.fetch-rows-btn').dataset.task;
+    fetchSheetRows(task);
+  }
+  if (e.target.closest('.start-automation-btn')) {
+    const task = e.target.closest('.start-automation-btn').dataset.task;
+    startAutomation(task);
+  }
+  if (e.target.closest('.stop-automation-btn')) {
+    const task = e.target.closest('.stop-automation-btn').dataset.task;
+    stopAutomation(task);
+  }
+  if (e.target.id === 'saveSheetSettingsBtn') {
+    saveSheetSettings();
+  }
+});
+
+('.nav-item[data-view]').forEach((button) => button.addEventListener("click", () => {
   const view = button.dataset.view;
   $$(".nav-item[data-view]").forEach((item) => item.classList.toggle("active", item === button));
   $$(".view").forEach((item) => item.classList.toggle("active", item.id === `${view}View`));
   if (view === "automations") loadAutomations();
   if (view === "users") loadUsers();
+  if (view === "sheetSettings") loadSheetSettings();
   $(".sidebar").classList.remove("open");
 }));
 
@@ -767,14 +873,16 @@ $$('.filter-tab').forEach((button) => button.addEventListener("click", () => {
 }));
 
 els.searchInput.addEventListener("input", (event) => { state.search = event.target.value; renderProfiles(); });
+els.groupFilterSelect.addEventListener("change", (event) => { state.groupFilter = event.target.value; renderProfiles(); });
 els.profileTable.addEventListener("click", handleProfileAction);
 els.mobileProfileList.addEventListener("click", handleProfileAction);
 $("#newProfileButton").addEventListener("click", () => setModal(els.profileModal, true));
 $("#retryButton").addEventListener("click", () => loadProfiles());
 $("#refreshButton").addEventListener("click", () => loadProfiles());
 $("#emptyAction").addEventListener("click", () => {
-  if (state.search || state.filter !== "all") {
-    state.search = ""; state.filter = "all"; els.searchInput.value = "";
+  if (state.search || state.filter !== "all" || state.groupFilter !== "all") {
+    state.search = ""; state.filter = "all"; state.groupFilter = "all"; els.searchInput.value = "";
+    els.groupFilterSelect.value = "all";
     $$(".filter-tab").forEach((item) => item.classList.toggle("active", item.dataset.filter === "all"));
     renderProfiles();
   } else if (state.connected) setModal(els.profileModal, true);
@@ -1066,3 +1174,4 @@ async function bootstrap() {
 }
 
 bootstrap();
+

@@ -58,6 +58,19 @@
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8v5l3 2"/><circle cx="12" cy="12" r="9"/></svg>
             <span>Activity</span>
           </button>
+                  <div class="nav-item" style="pointer-events: none; padding-top: 16px;"><span class="eyebrow" style="margin:0;">ND Automation</span></div>
+          <button class="nav-item" data-view="ndAutoPosting"><span>Auto Posting</span></button>
+          <button class="nav-item" data-view="ndAutoListing"><span>Auto Listing</span></button>
+          <button class="nav-item" data-view="ndAutoWarmup"><span>Auto Warmup</span></button>
+          <button class="nav-item" data-view="ndRandomPosting"><span>Random Posting</span></button>
+          <button class="nav-item" data-view="ndFbListings"><span>FB Listings</span></button>
+          <button class="nav-item" data-view="ndAccountCreation"><span>ND Account Creation</span></button>
+          <button class="nav-item" data-view="ndBulkCreateProfiles"><span>Bulk Create Profiles</span></button>
+          <div class="nav-item" style="pointer-events: none; padding-top: 16px;"><span class="eyebrow" style="margin:0;">Settings</span></div>
+          <button class="nav-item" data-view="sheetSettings">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+            <span>Sheet Settings</span>
+          </button>
         </nav>
 
         <div class="sidebar-footer">
@@ -141,6 +154,13 @@
                 <input id="searchInput" type="search" placeholder="Search profiles or groups" autocomplete="off" />
                 <kbd>⌘ K</kbd>
               </div>
+              <label class="group-filter hidden" id="groupFilterWrap">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h6l2 2h8v10H4z"/></svg>
+                <span class="sr-only">Filter profiles by group</span>
+                <select id="groupFilterSelect" aria-label="Filter profiles by group">
+                  <option value="all">All groups</option>
+                </select>
+              </label>
               <div class="filter-tabs" role="tablist" aria-label="Filter profiles">
                 <button class="filter-tab active" data-filter="all">All</button>
                 <button class="filter-tab" data-filter="running">Running</button>
@@ -216,6 +236,229 @@
             <div class="mobile-user-list" id="mobileUserList"></div>
             <div class="members-empty hidden" id="usersEmpty"><span>No users found</span><p>Try another search or add a user.</p></div>
           </section>
+        </section>
+              <section class="view" id="ndAutoPostingView">
+          <div class="page-heading">
+            <div class="nd-automation-header"><p class="eyebrow">ND Automation</p><h1>Auto Posting</h1><p class="page-subtitle">Automatically post to ND using provided configuration.</p></div>
+            <button class="primary-button fetch-rows-btn" data-task="ndAutoPosting"><svg viewBox="0 0 24 24"><path d="M2 12h20M12 2v20"/></svg>Fetch Rows</button>
+          </div>
+          <div class="nd-config-panel">
+            <div class="two-column">
+              <label class="field"><span>Concurrency</span><input type="number" id="ndAutoPosting-concurrency" value="3" min="1" max="20"></label>
+              <label class="field"><span>Target Names</span><input type="text" id="ndAutoPosting-targetNames" placeholder="Comma separated targets"></label>
+            </div>
+            <div class="nd-actions" style="margin-top: 16px; display: flex; gap: 8px;">
+              <button class="primary-button start-automation-btn" data-task="ndAutoPosting">Start</button>
+              <button class="secondary-button stop-automation-btn" data-task="ndAutoPosting">Stop</button>
+            </div>
+          </div>
+          <div class="nd-progress-area" style="margin-top: 24px;">
+            <h3>Progress</h3>
+            <div class="nd-progress-bar"><div class="progress-fill" style="width: 0%;" id="ndAutoPosting-progress"></div></div>
+            <div class="nd-log-output" id="ndAutoPosting-log" style="height: 200px; overflow-y: auto; background: var(--panel-soft); padding: 12px; border: 1px solid var(--line); border-radius: 8px; margin-top: 12px;"></div>
+          </div>
+          <div class="table-wrap" style="margin-top: 24px;">
+            <h3>Pending Rows</h3>
+            <table class="nd-row-table">
+              <thead><tr><th>ID</th><th>Row Data</th><th>Status</th></tr></thead>
+              <tbody id="ndAutoPosting-rows"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="view" id="ndAutoListingView">
+          <div class="page-heading">
+            <div class="nd-automation-header"><p class="eyebrow">ND Automation</p><h1>Auto Listing</h1><p class="page-subtitle">Automatically list items.</p></div>
+            <button class="primary-button fetch-rows-btn" data-task="ndAutoListing"><svg viewBox="0 0 24 24"><path d="M2 12h20M12 2v20"/></svg>Fetch Rows</button>
+          </div>
+          <div class="nd-config-panel">
+            <div class="two-column">
+              <label class="field"><span>Concurrency</span><input type="number" id="ndAutoListing-concurrency" value="3" min="1" max="20"></label>
+              <label class="field"><span>Spammers List</span><input type="text" id="ndAutoListing-spammers" placeholder="Spammers"></label>
+            </div>
+            <div class="nd-actions" style="margin-top: 16px; display: flex; gap: 8px;">
+              <button class="primary-button start-automation-btn" data-task="ndAutoListing">Start</button>
+              <button class="secondary-button stop-automation-btn" data-task="ndAutoListing">Stop</button>
+            </div>
+          </div>
+          <div class="nd-progress-area" style="margin-top: 24px;">
+            <h3>Progress</h3>
+            <div class="nd-progress-bar"><div class="progress-fill" style="width: 0%;" id="ndAutoListing-progress"></div></div>
+            <div class="nd-log-output" id="ndAutoListing-log" style="height: 200px; overflow-y: auto; background: var(--panel-soft); padding: 12px; border: 1px solid var(--line); border-radius: 8px; margin-top: 12px;"></div>
+          </div>
+          <div class="table-wrap" style="margin-top: 24px;">
+            <h3>Pending Rows</h3>
+            <table class="nd-row-table">
+              <thead><tr><th>ID</th><th>Row Data</th><th>Status</th></tr></thead>
+              <tbody id="ndAutoListing-rows"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="view" id="ndAutoWarmupView">
+          <div class="page-heading">
+            <div class="nd-automation-header"><p class="eyebrow">ND Automation</p><h1>Auto Warmup</h1><p class="page-subtitle">Warmup accounts.</p></div>
+            <button class="primary-button fetch-rows-btn" data-task="ndAutoWarmup"><svg viewBox="0 0 24 24"><path d="M2 12h20M12 2v20"/></svg>Fetch Rows</button>
+          </div>
+          <div class="nd-config-panel">
+            <div class="two-column">
+              <label class="field"><span>Concurrency</span><input type="number" id="ndAutoWarmup-concurrency" value="3" min="1" max="20"></label>
+            </div>
+            <div class="nd-actions" style="margin-top: 16px; display: flex; gap: 8px;">
+              <button class="primary-button start-automation-btn" data-task="ndAutoWarmup">Start</button>
+              <button class="secondary-button stop-automation-btn" data-task="ndAutoWarmup">Stop</button>
+            </div>
+          </div>
+          <div class="nd-progress-area" style="margin-top: 24px;">
+            <h3>Progress</h3>
+            <div class="nd-progress-bar"><div class="progress-fill" style="width: 0%;" id="ndAutoWarmup-progress"></div></div>
+            <div class="nd-log-output" id="ndAutoWarmup-log" style="height: 200px; overflow-y: auto; background: var(--panel-soft); padding: 12px; border: 1px solid var(--line); border-radius: 8px; margin-top: 12px;"></div>
+          </div>
+          <div class="table-wrap" style="margin-top: 24px;">
+            <h3>Pending Rows</h3>
+            <table class="nd-row-table">
+              <thead><tr><th>ID</th><th>Row Data</th><th>Status</th></tr></thead>
+              <tbody id="ndAutoWarmup-rows"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="view" id="ndRandomPostingView">
+          <div class="page-heading">
+            <div class="nd-automation-header"><p class="eyebrow">ND Automation</p><h1>Random Posting</h1><p class="page-subtitle">Post random content.</p></div>
+            <button class="primary-button fetch-rows-btn" data-task="ndRandomPosting"><svg viewBox="0 0 24 24"><path d="M2 12h20M12 2v20"/></svg>Fetch Rows</button>
+          </div>
+          <div class="nd-config-panel">
+            <div class="two-column">
+              <label class="field"><span>Concurrency</span><input type="number" id="ndRandomPosting-concurrency" value="3" min="1" max="20"></label>
+            </div>
+            <div class="nd-actions" style="margin-top: 16px; display: flex; gap: 8px;">
+              <button class="primary-button start-automation-btn" data-task="ndRandomPosting">Start</button>
+              <button class="secondary-button stop-automation-btn" data-task="ndRandomPosting">Stop</button>
+            </div>
+          </div>
+          <div class="nd-progress-area" style="margin-top: 24px;">
+            <h3>Progress</h3>
+            <div class="nd-progress-bar"><div class="progress-fill" style="width: 0%;" id="ndRandomPosting-progress"></div></div>
+            <div class="nd-log-output" id="ndRandomPosting-log" style="height: 200px; overflow-y: auto; background: var(--panel-soft); padding: 12px; border: 1px solid var(--line); border-radius: 8px; margin-top: 12px;"></div>
+          </div>
+          <div class="table-wrap" style="margin-top: 24px;">
+            <h3>Pending Rows</h3>
+            <table class="nd-row-table">
+              <thead><tr><th>ID</th><th>Row Data</th><th>Status</th></tr></thead>
+              <tbody id="ndRandomPosting-rows"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="view" id="ndFbListingsView">
+          <div class="page-heading">
+            <div class="nd-automation-header"><p class="eyebrow">ND Automation</p><h1>FB Listings</h1><p class="page-subtitle">List items on FB.</p></div>
+            <button class="primary-button fetch-rows-btn" data-task="ndFbListings"><svg viewBox="0 0 24 24"><path d="M2 12h20M12 2v20"/></svg>Fetch Rows</button>
+          </div>
+          <div class="nd-config-panel">
+            <div class="two-column">
+              <label class="field"><span>Concurrency</span><input type="number" id="ndFbListings-concurrency" value="3" min="1" max="20"></label>
+            </div>
+            <div class="nd-actions" style="margin-top: 16px; display: flex; gap: 8px;">
+              <button class="primary-button start-automation-btn" data-task="ndFbListings">Start</button>
+              <button class="secondary-button stop-automation-btn" data-task="ndFbListings">Stop</button>
+            </div>
+          </div>
+          <div class="nd-progress-area" style="margin-top: 24px;">
+            <h3>Progress</h3>
+            <div class="nd-progress-bar"><div class="progress-fill" style="width: 0%;" id="ndFbListings-progress"></div></div>
+            <div class="nd-log-output" id="ndFbListings-log" style="height: 200px; overflow-y: auto; background: var(--panel-soft); padding: 12px; border: 1px solid var(--line); border-radius: 8px; margin-top: 12px;"></div>
+          </div>
+          <div class="table-wrap" style="margin-top: 24px;">
+            <h3>Pending Rows</h3>
+            <table class="nd-row-table">
+              <thead><tr><th>ID</th><th>Row Data</th><th>Status</th></tr></thead>
+              <tbody id="ndFbListings-rows"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="view" id="ndAccountCreationView">
+          <div class="page-heading">
+            <div class="nd-automation-header"><p class="eyebrow">ND Automation</p><h1>ND Account Creation</h1><p class="page-subtitle">Create ND accounts automatically.</p></div>
+            <button class="primary-button fetch-rows-btn" data-task="ndAccountCreation"><svg viewBox="0 0 24 24"><path d="M2 12h20M12 2v20"/></svg>Fetch Rows</button>
+          </div>
+          <div class="nd-config-panel">
+            <div class="two-column">
+              <label class="field"><span>Concurrency</span><input type="number" id="ndAccountCreation-concurrency" value="3" min="1" max="20"></label>
+            </div>
+            <div class="nd-actions" style="margin-top: 16px; display: flex; gap: 8px;">
+              <button class="primary-button start-automation-btn" data-task="ndAccountCreation">Start</button>
+              <button class="secondary-button stop-automation-btn" data-task="ndAccountCreation">Stop</button>
+            </div>
+          </div>
+          <div class="nd-progress-area" style="margin-top: 24px;">
+            <h3>Progress</h3>
+            <div class="nd-progress-bar"><div class="progress-fill" style="width: 0%;" id="ndAccountCreation-progress"></div></div>
+            <div class="nd-log-output" id="ndAccountCreation-log" style="height: 200px; overflow-y: auto; background: var(--panel-soft); padding: 12px; border: 1px solid var(--line); border-radius: 8px; margin-top: 12px;"></div>
+          </div>
+          <div class="table-wrap" style="margin-top: 24px;">
+            <h3>Pending Rows</h3>
+            <table class="nd-row-table">
+              <thead><tr><th>ID</th><th>Row Data</th><th>Status</th></tr></thead>
+              <tbody id="ndAccountCreation-rows"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="view" id="ndBulkCreateProfilesView">
+          <div class="page-heading">
+            <div class="nd-automation-header"><p class="eyebrow">ND Automation</p><h1>Bulk Create Profiles</h1><p class="page-subtitle">Create multiple profiles at once.</p></div>
+            <button class="primary-button fetch-rows-btn" data-task="ndBulkCreateProfiles"><svg viewBox="0 0 24 24"><path d="M2 12h20M12 2v20"/></svg>Fetch Rows</button>
+          </div>
+          <div class="nd-config-panel">
+            <div class="two-column">
+              <label class="field"><span>Concurrency</span><input type="number" id="ndBulkCreateProfiles-concurrency" value="3" min="1" max="20"></label>
+            </div>
+            <div class="nd-actions" style="margin-top: 16px; display: flex; gap: 8px;">
+              <button class="primary-button start-automation-btn" data-task="ndBulkCreateProfiles">Start</button>
+              <button class="secondary-button stop-automation-btn" data-task="ndBulkCreateProfiles">Stop</button>
+            </div>
+          </div>
+          <div class="nd-progress-area" style="margin-top: 24px;">
+            <h3>Progress</h3>
+            <div class="nd-progress-bar"><div class="progress-fill" style="width: 0%;" id="ndBulkCreateProfiles-progress"></div></div>
+            <div class="nd-log-output" id="ndBulkCreateProfiles-log" style="height: 200px; overflow-y: auto; background: var(--panel-soft); padding: 12px; border: 1px solid var(--line); border-radius: 8px; margin-top: 12px;"></div>
+          </div>
+          <div class="table-wrap" style="margin-top: 24px;">
+            <h3>Pending Rows</h3>
+            <table class="nd-row-table">
+              <thead><tr><th>ID</th><th>Row Data</th><th>Status</th></tr></thead>
+              <tbody id="ndBulkCreateProfiles-rows"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="view" id="sheetSettingsView">
+          <div class="page-heading">
+            <div>
+              <p class="eyebrow">Configuration</p>
+              <h1>Sheet Settings</h1>
+              <p class="page-subtitle">Configure Google Sheets integration and browser provider.</p>
+            </div>
+          </div>
+          <div class="nd-config-panel sheet-settings-form">
+            <div class="form-section">
+              <label class="field"><span>Google Apps Script URL</span><input type="url" id="sheet-gas-url" placeholder="https://script.google.com/macros/s/.../exec"></label>
+              <div class="two-column">
+                <label class="field"><span>Browser Provider</span><select id="sheet-browser-provider"><option value="incogniton">Incogniton</option><option value="adspower">AdsPower</option></select></label>
+                <label class="field"><span>AdsPower API Key</span><input type="text" id="sheet-adspower-key" placeholder="API Key (if AdsPower)"></label>
+              </div>
+              <label class="field"><span>Profile OS</span><select id="sheet-profile-os"><option value="windows">Windows</option><option value="android">Android</option></select></label>
+              <button class="primary-button" id="saveSheetSettingsBtn" style="margin-top: 16px;">Save Settings</button>
+            </div>
+          </div>
+          <div style="margin-top: 24px; padding: 24px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel);">
+            <h3>Apps Script Code</h3>
+            <p style="color: var(--muted); font-size: 13px;">Copy and deploy this code to your Google Apps Script project.</p>
+            <pre style="background: var(--panel-soft); padding: 12px; border-radius: 8px; font-size: 12px; overflow-x: auto; border: 1px solid var(--line);"><code>// Code here</code></pre>
+          </div>
         </section>
       </main>
     </div>
@@ -322,3 +565,4 @@
     <script type="module" src="/app.js"></script>
   </body>
 </html>
+
