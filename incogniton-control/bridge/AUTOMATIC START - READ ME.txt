@@ -1,0 +1,21 @@
+KITKAT BRIDGE - AUTOMATIC START
+================================
+
+You only need to set this up once on each user's PC.
+
+1. Open "Start KitKat Bridge.bat" and sign in once.
+2. When the bridge says it is connected, close that window.
+3. Double-click "Install Automatic Start.bat".
+
+After setup:
+
+- KitKat Bridge starts automatically when you sign in to Windows.
+- No black CMD window needs to stay open.
+- A KitKat Bridge icon appears near the Windows clock.
+- Double-click the icon to open KitKat.
+- Right-click it to view the log, restart, or stop the bridge.
+- You may move or delete the downloaded ZIP folder after installation.
+
+Incogniton must still be open when you want KitKat to control profiles.
+
+To disable automatic start, double-click "Remove Automatic Start.bat".

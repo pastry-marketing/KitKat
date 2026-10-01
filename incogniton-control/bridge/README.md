@@ -19,6 +19,17 @@ The password is never saved. Supabase returns a refresh session which is protect
 
 The saved session only works for the same Windows user on the same PC. Delete that file to disconnect the PC and require a new sign-in.
 
+## Start automatically with Windows
+
+After signing in successfully once:
+
+1. Close the normal bridge window.
+2. Double-click `Install Automatic Start.bat`.
+
+The bridge then starts quietly whenever that Windows user signs in. A tray icon near the Windows clock provides **Open KitKat**, **View bridge log**, **Restart bridge**, and **Stop bridge and exit** actions. The black CMD window does not need to stay open.
+
+Use `Remove Automatic Start.bat` to disable automatic startup. Incogniton itself must still be open when KitKat needs to control local profiles.
+
 ## Current bridge commands
 
 - Sync Incogniton profiles
