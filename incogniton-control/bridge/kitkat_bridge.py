@@ -747,7 +747,7 @@ class KitKatBridge:
             raise BridgeError("The command is missing an Incogniton profile ID")
         encoded = urllib.parse.quote(profile_id, safe="")
         if action == "launch_profile":
-            result = self.incogniton.request(f"/profile/start/{encoded}", timeout=120)
+            result = self.incogniton.request(f"/profile/launch/{encoded}", timeout=120)
             self.sync_profiles()
             return result
         if action == "stop_profile":
