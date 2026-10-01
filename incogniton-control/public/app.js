@@ -190,7 +190,7 @@ function renderProfiles() {
     els.emptyTitle.textContent = isSearch ? "No matching profiles" : (state.connected ? "No profiles yet" : "Connection needed");
     els.emptyMessage.textContent = isSearch
       ? "Try another search or clear the current filter."
-      : state.connected ? "Create your first profile and it will appear here." : "Connect Incogniton to load and manage your profiles.";
+      : state.connected ? "Create your first profile and it will appear here." : "Start KitKat Bridge on the Incogniton PC to load and manage profiles.";
     $("#emptyAction").textContent = isSearch ? "Clear filters" : (state.connected ? "Create profile" : "Try again");
   }
 
@@ -222,11 +222,11 @@ function updateCounts() {
 function setConnection(connected, message = "") {
   state.connected = connected;
   els.connectionDot.className = `status-dot ${connected ? "online" : "offline"}`;
-  els.connectionLabel.textContent = connected ? "Incogniton connected" : "Incogniton offline";
-  els.connectionHint.textContent = connected ? "Local API ready" : "Action required";
+  els.connectionLabel.textContent = connected ? "Bridge connected" : "Bridge offline";
+  els.connectionHint.textContent = connected ? "Incogniton PC online" : "Action required";
   els.offlineBanner.classList.toggle("hidden", connected);
   $("#newProfileButton").disabled = !connected;
-  $("#newProfileButton").title = connected ? "Create a new profile" : "Connect Incogniton to create profiles";
+  $("#newProfileButton").title = connected ? "Create a new profile" : "Start KitKat Bridge to create profiles";
   if (!connected && message) els.offlineBanner.querySelector("p").textContent = message;
 }
 
@@ -235,7 +235,7 @@ async function checkConnection() {
   els.connectionLabel.textContent = "Checking connection";
   try {
     const health = await api("/api/health");
-    setConnection(health.connected, health.connected ? "" : "Open the Incogniton desktop app and make sure its API is enabled.");
+    setConnection(health.connected, health.connected ? "" : (health.message || "Start KitKat Bridge on the Incogniton computer."));
     return health.connected;
   } catch (error) {
     setConnection(false, error.message);
