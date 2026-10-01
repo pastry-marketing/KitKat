@@ -110,10 +110,13 @@
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 3 18 18M8.5 8.5A6 6 0 0 1 18 13M5 13a9 9 0 0 1 .9-3.9M12 17h.01"/></svg>
             </div>
             <div>
-              <strong>Incogniton isn’t connected</strong>
-              <p>Open the desktop app, make sure you’re signed in, and enable the automation API.</p>
+              <strong>KitKat Bridge isn’t connected</strong>
+              <p>Install the bridge once on each computer that runs Incogniton.</p>
             </div>
-            <button class="secondary-button" id="retryButton">Try again</button>
+            <div class="offline-actions">
+              <a class="secondary-button" href="/downloads/KitKat-Bridge.zip" download>Download bridge</a>
+              <button class="secondary-button" id="retryButton">Try again</button>
+            </div>
           </div>
 
           <div class="summary-grid" aria-label="Profile summary">
@@ -253,8 +256,9 @@
       <div class="modal-backdrop" data-close-settings></div>
       <section class="modal small" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
         <div class="modal-header"><div><span class="modal-kicker">Local connection</span><h2 id="settingsTitle">Settings</h2></div><button class="icon-button" data-close-settings aria-label="Close"><svg viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg></button></div>
-        <div class="settings-row"><div><strong>Incogniton API</strong><span>Managed by the local KitKat server</span></div><code>127.0.0.1:35000</code></div>
-        <div class="settings-row"><div><strong>KitKat access</strong><span>Available only on this computer</span></div><span class="safe-badge">Local only</span></div>
+        <div class="settings-row"><div><strong>Incogniton API</strong><span>Called only by KitKat Bridge on the PC</span></div><code>127.0.0.1:35000</code></div>
+        <div class="settings-row"><div><strong>KitKat Bridge</strong><span>Install once on each Incogniton computer</span></div><a class="settings-download" href="/downloads/KitKat-Bridge.zip" download>Download</a></div>
+        <div class="settings-row"><div><strong>KitKat access</strong><span>Cloud workspace with role-based access</span></div><span class="safe-badge">Protected</span></div>
         <div class="settings-row preview-row"><div><strong>Preview permissions as</strong><span>Local testing only — sign-in comes later</span></div><select id="userPreviewSelect" aria-label="Preview as user"></select></div>
         <div class="settings-row cloud-account-row hidden" id="cloudAccountRow"><div><strong>Signed-in account</strong><span id="cloudAccountEmail">—</span></div><button class="member-action danger" id="signOutButton">Sign out</button></div>
       </section>
