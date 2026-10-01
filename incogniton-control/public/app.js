@@ -4,6 +4,7 @@ const state = {
   connected: false,
   loading: true,
   profiles: [],
+  displayLimit: 100,
   filter: "all",
   groupFilter: "all",
   search: "",
@@ -213,7 +214,8 @@ function renderProfiles() {
     $("#emptyAction").textContent = isSearch ? "Clear filters" : (state.connected ? "Create profile" : "Try again");
   }
 
-  els.profileTable.innerHTML = profiles.map((profile) => `
+  const visibleProfiles = profiles.slice(0, state.displayLimit);
+  let html = visibleProfiles.map((profile) => `
     <tr>
       <td><div class="profile-cell"><span class="profile-avatar">${escapeHtml(initials(profile.name))}</span><div><span class="profile-name">${escapeHtml(profile.name)}</span><span class="profile-id">${escapeHtml(profile.id)}</span></div></div></td>
       <td>${escapeHtml(profile.group)}</td>
@@ -221,13 +223,28 @@ function renderProfiles() {
       <td><span class="status-pill ${escapeHtml(profile.status)}">${escapeHtml(profile.status)}</span></td>
       <td>${actionMarkup(profile)}</td>
     </tr>`).join("");
+  
+  if (profiles.length > state.displayLimit) {
+    html += `<tr><td colspan="5" style="text-align:center; padding: 16px;"><button class="secondary-button" id="loadMoreProfiles" style="margin:auto;">Load more (${profiles.length - state.displayLimit} remaining)</button></td></tr>`;
+  }
+  els.profileTable.innerHTML = html;
 
-  els.mobileProfileList.innerHTML = profiles.map((profile) => `
+  let mobileHtml = visibleProfiles.map((profile) => `
     <article class="mobile-profile-card">
       <div class="mobile-card-head"><div class="profile-cell"><span class="profile-avatar">${escapeHtml(initials(profile.name))}</span><div><span class="profile-name">${escapeHtml(profile.name)}</span><span class="profile-id">${escapeHtml(profile.id)}</span></div></div><span class="status-pill ${escapeHtml(profile.status)}">${escapeHtml(profile.status)}</span></div>
-      <div class="mobile-card-meta"><span>${escapeHtml(profile.group)}</span><span>•</span><span class="platform-pill">${escapeHtml(profile.platform)}</span></div>
+      <div class="mobile-card-meta"><span>${escapeHtml(profile.group)}</span><span> </span><span class="platform-pill">${escapeHtml(profile.platform)}</span></div>
       <div class="mobile-card-actions">${actionMarkup(profile)}</div>
     </article>`).join("");
+  
+  if (profiles.length > state.displayLimit) {
+    mobileHtml += `<div style="text-align:center; padding: 16px;"><button class="secondary-button" id="loadMoreProfilesMobile" style="margin:auto;">Load more</button></div>`;
+  }
+  els.mobileProfileList.innerHTML = mobileHtml;
+
+  const loadMoreBtn = document.getElementById("loadMoreProfiles");
+  if (loadMoreBtn) loadMoreBtn.addEventListener("click", () => { state.displayLimit += 100; renderProfiles(); });
+  const loadMoreBtnMobile = document.getElementById("loadMoreProfilesMobile");
+  if (loadMoreBtnMobile) loadMoreBtnMobile.addEventListener("click", () => { state.displayLimit += 100; renderProfiles(); });
 
   updateCounts();
 }
@@ -923,12 +940,13 @@ $$('.nav-item[data-view]').forEach((button) => button.addEventListener("click", 
 
 $$('.filter-tab').forEach((button) => button.addEventListener("click", () => {
   state.filter = button.dataset.filter;
+  state.displayLimit = 100;
   $$(".filter-tab").forEach((item) => item.classList.toggle("active", item === button));
   renderProfiles();
 }));
 
-els.searchInput.addEventListener("input", (event) => { state.search = event.target.value; renderProfiles(); });
-els.groupFilterSelect.addEventListener("change", (event) => { state.groupFilter = event.target.value; renderProfiles(); });
+els.searchInput.addEventListener("input", (event) => { state.search = event.target.value; state.displayLimit = 100; renderProfiles(); });
+els.groupFilterSelect.addEventListener("change", (event) => { state.groupFilter = event.target.value; state.displayLimit = 100; renderProfiles(); });
 els.profileTable.addEventListener("click", handleProfileAction);
 els.mobileProfileList.addEventListener("click", handleProfileAction);
 $("#newProfileButton").addEventListener("click", () => setModal(els.profileModal, true));
@@ -936,7 +954,7 @@ $("#retryButton").addEventListener("click", () => loadProfiles());
 $("#refreshButton").addEventListener("click", () => loadProfiles());
 $("#emptyAction").addEventListener("click", () => {
   if (state.search || state.filter !== "all" || state.groupFilter !== "all") {
-    state.search = ""; state.filter = "all"; state.groupFilter = "all"; els.searchInput.value = "";
+    state.search = ""; state.filter = "all"; state.groupFilter = "all"; state.displayLimit = 100; els.searchInput.value = "";
     els.groupFilterSelect.value = "all";
     $$(".filter-tab").forEach((item) => item.classList.toggle("active", item.dataset.filter === "all"));
     renderProfiles();

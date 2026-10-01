@@ -192,9 +192,17 @@ export async function cloudApi(path, options = {}) {
     return { status: "ok" };
   }
   if (path === "/api/profiles" && method === "GET") {
-    const response = await supabase.from("browser_profiles").select("*").eq("workspace_id", membership.workspace_id).order("name");
-    if (response.error) fail(response.error);
-    return { status: "ok", profileData: response.data.map(mapProfile) };
+    let allProfiles = [];
+    let from = 0;
+    const limit = 1000;
+    while (true) {
+      const response = await supabase.from("browser_profiles").select("*").eq("workspace_id", membership.workspace_id).order("name").range(from, from + limit - 1);
+      if (response.error) fail(response.error);
+      allProfiles.push(...response.data);
+      if (response.data.length < limit) break;
+      from += limit;
+    }
+    return { status: "ok", profileData: allProfiles.map(mapProfile) };
   }
   if (path === "/api/profiles" && method === "POST") return queueCommand("create_profile", null, body);
   const statusMatch = path.match(/^\/api\/profiles\/([^/]+)\/status$/);
