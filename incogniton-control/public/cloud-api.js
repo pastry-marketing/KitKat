@@ -62,8 +62,8 @@ async function activeAgent(profileId) {
     if (response.error) fail(response.error);
     return response.data.agent_id;
   }
-  const onlineSince = new Date(Date.now() - 90_000).toISOString();
-  const response = await supabase.from("agents").select("id").eq("workspace_id", membership.workspace_id).eq("created_by", session.user.id).eq("active", true).gte("last_seen_at", onlineSince).order("last_seen_at", { ascending: false }).limit(1).maybeSingle();
+  const onlineSince = new Date(Date.now() - 300_000).toISOString();
+  const response = await supabase.from("agents").select("id").eq("workspace_id", membership.workspace_id).eq("active", true).gte("last_seen_at", onlineSince).order("last_seen_at", { ascending: false }).limit(1).maybeSingle();
   if (response.error) fail(response.error);
   if (!response.data) throw new Error("No local KitKat agent is connected yet");
   return response.data.id;
@@ -149,8 +149,8 @@ export async function cloudApi(path, options = {}) {
 
   if (path === "/api/session") return { user: { id: session.user.id, name: membership.display_name, email: session.user.email, role: membership.role, allowedGroups: [], allowedAutomations: membership.role === "super_admin" ? ["*"] : (membership.allowed_automations || []), active: membership.active }, roles, manageableRoles: manageableRoles(membership.role) };
   if (path === "/api/health") {
-    const response = await supabase.from("agents").select("last_seen_at").eq("workspace_id", membership.workspace_id).eq("created_by", session.user.id).eq("active", true).order("last_seen_at", { ascending: false }).limit(1).maybeSingle();
-    const connected = Boolean(response.data?.last_seen_at && Date.now() - new Date(response.data.last_seen_at).getTime() < 90_000);
+    const response = await supabase.from("agents").select("last_seen_at").eq("workspace_id", membership.workspace_id).eq("active", true).order("last_seen_at", { ascending: false }).limit(1).maybeSingle();
+    const connected = Boolean(response.data?.last_seen_at && Math.abs(Date.now() - new Date(response.data.last_seen_at).getTime()) < 300_000);
     return { connected, endpoint: "Supabase command bridge", message: connected ? "" : "Start KitKat Bridge on the Incogniton computer." };
   }
   if (path === "/api/users" && method === "GET") {
