@@ -81,7 +81,11 @@ svg { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round
 .auth-switch button { padding: 0; border: 0; background: transparent; color: var(--primary); font-size: inherit; font-weight: 700; cursor: pointer; }
 .auth-message { margin-top: 16px; padding: 10px; border-radius: 9px; background: var(--danger-soft); color: var(--danger); font-size: 10px; line-height: 1.5; text-align: center; }
 .cloud-account-row { align-items: center; }
-.nav-list { display: grid; gap: 6px; margin-top: 44px; }
+.nav-list { display: flex; flex-direction: column; gap: 6px; margin-top: 44px; flex: 1; overflow-y: auto; overflow-x: hidden; }
+.nav-list::-webkit-scrollbar { width: 4px; }
+.nav-list::-webkit-scrollbar-track { background: transparent; }
+.nav-list::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.1); border-radius: 4px; }
+:root[data-theme="dark"] .nav-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); }
 .nav-item { position: relative; display: flex; width: 100%; align-items: center; gap: 12px; min-height: 44px; padding: 0 13px; border: 0; border-radius: 12px; background: transparent; color: #666b78; cursor: pointer; text-align: left; transition: 160ms ease; }
 .nav-item svg { width: 20px; height: 20px; }
 .nav-item:hover { background: #f0f1f5; color: var(--text); }

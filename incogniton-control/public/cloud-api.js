@@ -147,7 +147,7 @@ export async function cloudApi(path, options = {}) {
   const body = options.body ? JSON.parse(options.body) : {};
   const { session, membership } = await requireContext();
 
-  if (path === "/api/session") return { user: { id: session.user.id, name: membership.display_name, email: session.user.email, role: membership.role, allowedGroups: [], active: membership.active }, roles, manageableRoles: manageableRoles(membership.role) };
+  if (path === "/api/session") return { user: { id: session.user.id, name: membership.display_name, email: session.user.email, role: membership.role, allowedGroups: [], allowedAutomations: membership.role === "super_admin" ? ["*"] : (membership.allowed_automations || []), active: membership.active }, roles, manageableRoles: manageableRoles(membership.role) };
   if (path === "/api/health") {
     const response = await supabase.from("agents").select("last_seen_at").eq("workspace_id", membership.workspace_id).eq("created_by", session.user.id).eq("active", true).order("last_seen_at", { ascending: false }).limit(1).maybeSingle();
     const connected = Boolean(response.data?.last_seen_at && Date.now() - new Date(response.data.last_seen_at).getTime() < 90_000);
@@ -160,7 +160,7 @@ export async function cloudApi(path, options = {}) {
     if (groupsResponse.error) fail(groupsResponse.error);
     const groups = new Map();
     for (const row of groupsResponse.data) groups.set(row.user_id, [...(groups.get(row.user_id) || []), row.group_name]);
-    return { users: usersResponse.data.map((user) => ({ ...user, id: user.user_id, name: user.display_name, allowedGroups: user.role === "super_admin" ? ["*"] : (groups.get(user.user_id) || []) })), manageableRoles: manageableRoles(membership.role) };
+    return { users: usersResponse.data.map((user) => ({ ...user, id: user.user_id, name: user.display_name, allowedGroups: user.role === "super_admin" ? ["*"] : (groups.get(user.user_id) || []), allowedAutomations: user.role === "super_admin" ? ["*"] : (user.allowed_automations || []) })), manageableRoles: manageableRoles(membership.role) };
   }
   if (path === "/api/users" && method === "POST") {
     const response = await supabase.functions.invoke("invite-user", {
@@ -172,7 +172,9 @@ export async function cloudApi(path, options = {}) {
   const userMatch = path.match(/^\/api\/users\/([^/]+)$/);
   if (userMatch && method === "PUT") {
     const userId = decodeURIComponent(userMatch[1]);
-    const response = await supabase.from("workspace_members").update({ display_name: body.name, role: body.role, active: body.active }).eq("workspace_id", membership.workspace_id).eq("user_id", userId).select().single();
+    const updateData = { display_name: body.name, role: body.role, active: body.active };
+    if (body.allowedAutomations !== undefined) updateData.allowed_automations = body.allowedAutomations;
+    const response = await supabase.from("workspace_members").update(updateData).eq("workspace_id", membership.workspace_id).eq("user_id", userId).select().single();
     if (response.error) fail(response.error);
     if (membership.role === "super_admin" && body.allowedGroups) {
       await supabase.from("member_group_access").delete().eq("workspace_id", membership.workspace_id).eq("user_id", userId);
@@ -182,7 +184,7 @@ export async function cloudApi(path, options = {}) {
         if (groupResponse.error) fail(groupResponse.error);
       }
     }
-    return { ...response.data, id: response.data.user_id, name: response.data.display_name, allowedGroups: body.role === "super_admin" ? ["*"] : body.allowedGroups || [] };
+    return { ...response.data, id: response.data.user_id, name: response.data.display_name, allowedGroups: body.role === "super_admin" ? ["*"] : body.allowedGroups || [], allowedAutomations: body.role === "super_admin" ? ["*"] : body.allowedAutomations || [] };
   }
   if (userMatch && method === "DELETE") {
     const response = await supabase.from("workspace_members").delete().eq("workspace_id", membership.workspace_id).eq("user_id", decodeURIComponent(userMatch[1]));

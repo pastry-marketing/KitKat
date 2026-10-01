@@ -28,7 +28,6 @@
           <label class="field"><span>Password</span><input name="password" type="password" autocomplete="current-password" minlength="8" required placeholder="At least 8 characters" /></label>
           <button class="primary-button auth-submit" type="submit" id="authSubmit">Sign in</button>
         </form>
-        <p class="auth-switch"><span id="authSwitchPrompt">New to KitKat?</span> <button id="authSwitchButton" type="button">Create the workspace</button></p>
         <div class="auth-message hidden" id="authMessage" role="status"></div>
       </section>
     </div>
@@ -58,14 +57,22 @@
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8v5l3 2"/><circle cx="12" cy="12" r="9"/></svg>
             <span>Activity</span>
           </button>
-                  <div class="nav-item" style="pointer-events: none; padding-top: 16px;"><span class="eyebrow" style="margin:0;">ND Automation</span></div>
-          <button class="nav-item" data-view="ndAutoPosting"><span>Auto Posting</span></button>
-          <button class="nav-item" data-view="ndAutoListing"><span>Auto Listing</span></button>
-          <button class="nav-item" data-view="ndAutoWarmup"><span>Auto Warmup</span></button>
-          <button class="nav-item" data-view="ndRandomPosting"><span>Random Posting</span></button>
-          <button class="nav-item" data-view="ndFbListings"><span>FB Listings</span></button>
-          <button class="nav-item" data-view="ndAccountCreation"><span>ND Account Creation</span></button>
-          <button class="nav-item" data-view="ndBulkCreateProfiles"><span>Bulk Create Profiles</span></button>
+          
+          <div id="ndAutomationSection" style="display: none;">
+            <div class="nav-item" style="pointer-events: none; padding-top: 16px;"><span class="eyebrow" style="margin:0;">ND Automation</span></div>
+            <button class="nav-item" data-view="ndAutoPosting"><span>Auto Posting</span></button>
+            <button class="nav-item" data-view="ndAutoListing"><span>Auto Listing</span></button>
+            <button class="nav-item" data-view="ndAutoWarmup"><span>Auto Warmup</span></button>
+            <button class="nav-item" data-view="ndRandomPosting"><span>Random Posting</span></button>
+            <button class="nav-item" data-view="ndAccountCreation"><span>ND Account Creation</span></button>
+            <button class="nav-item" data-view="ndBulkCreateProfiles"><span>Bulk Create Profiles</span></button>
+          </div>
+
+          <div id="fbAutomationSection" style="display: none;">
+            <div class="nav-item" style="pointer-events: none; padding-top: 16px;"><span class="eyebrow" style="margin:0;">FB Automation</span></div>
+            <button class="nav-item" data-view="ndFbListings"><span>FB Listings</span></button>
+          </div>
+
           <div class="nav-item" style="pointer-events: none; padding-top: 16px;"><span class="eyebrow" style="margin:0;">Settings</span></div>
           <button class="nav-item" data-view="sheetSettings">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
@@ -520,6 +527,10 @@
           <div class="group-access-field" id="groupAccessField">
             <div><strong>Visible profile groups</strong><span>Select the Incogniton groups this user can see.</span></div>
             <div class="group-options" id="groupOptions"></div>
+          </div>
+          <div class="group-access-field" id="automationAccessField">
+            <div><strong>Allowed sub-automations</strong><span>Select the specific automations this user can see.</span></div>
+            <div class="group-options" id="automationOptions"></div>
           </div>
           <div class="permission-note" id="permissionNote"></div>
           <div class="modal-actions"><button type="button" class="text-button" data-close-user>Cancel</button><button type="submit" class="primary-button" id="saveUserButton">Add user</button></div>

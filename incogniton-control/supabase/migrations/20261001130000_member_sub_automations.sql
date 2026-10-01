@@ -1,0 +1,1 @@
+ALTER TABLE public.workspace_members ADD COLUMN allowed_automations JSONB DEFAULT '[]'::jsonb;

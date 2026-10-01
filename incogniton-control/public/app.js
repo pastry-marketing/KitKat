@@ -384,6 +384,29 @@ function renderPreviewUsers() {
   els.userPreviewSelect.innerHTML = state.previewUsers.map((user) => `<option value="${escapeHtml(user.id)}" ${user.id === state.currentUser?.id ? "selected" : ""}>${escapeHtml(user.name)} — ${escapeHtml(roleLabel(user.role))}</option>`).join("");
 }
 
+function updateSidebarVisibility() {
+  if (!state.currentUser) return;
+  
+  const role = state.currentUser.role;
+  const isSuperAdmin = role === "super_admin";
+  const isND = role === "nd_admin" || role === "nd_operator";
+  const isFB = role === "fb_admin" || role === "fb_operator";
+  
+  const allowed = state.currentUser.allowedAutomations || [];
+  const canSee = (task) => isSuperAdmin || allowed.includes("*") || allowed.includes(task);
+
+  $("#ndAutomationSection").style.display = (isSuperAdmin || isND) ? "block" : "none";
+  $("#fbAutomationSection").style.display = (isSuperAdmin || isFB) ? "block" : "none";
+
+  $$('#ndAutomationSection .nav-item[data-view]').forEach(btn => {
+    btn.style.display = canSee(btn.dataset.view) ? "flex" : "none";
+  });
+
+  $$('#fbAutomationSection .nav-item[data-view]').forEach(btn => {
+    btn.style.display = canSee(btn.dataset.view) ? "flex" : "none";
+  });
+}
+
 async function loadSession({ recover = true } = {}) {
   try {
     const data = await api("/api/session");
@@ -391,6 +414,9 @@ async function loadSession({ recover = true } = {}) {
     state.roles = data.roles || {};
     state.manageableRoles = data.manageableRoles || [];
     if (!isCloudMode) localStorage.setItem("kitkat-preview-user", data.user.id);
+    
+    updateSidebarVisibility();
+    
     const canManageUsers = state.manageableRoles.length > 0;
     $("#usersNav").classList.toggle("hidden", !canManageUsers);
     if (!canManageUsers && $("#usersView").classList.contains("active")) {
@@ -434,6 +460,15 @@ function updateUserPermissionFields() {
   const superActor = state.currentUser?.role === "super_admin";
   const showGroups = superActor && role !== "super_admin";
   $("#groupAccessField").classList.toggle("hidden", !showGroups);
+  
+  const showAutomations = superActor || state.currentUser?.role === "nd_admin" || state.currentUser?.role === "fb_admin";
+  $("#automationAccessField").classList.toggle("hidden", !showAutomations);
+  
+  if (showAutomations) {
+    const defaultSelected = state.editingUser ? state.editingUser.allowedAutomations || [] : [];
+    renderAutomationOptions(role, defaultSelected);
+  }
+
   const notes = {
     super_admin: "<strong>Full control.</strong> This user can create and manage every role and access every profile group.",
     fb_admin: "<strong>FB management.</strong> Can create and manage FB Operators only.",
@@ -447,6 +482,26 @@ function updateUserPermissionFields() {
 function renderGroupOptions(selected = []) {
   const groups = availableGroups();
   $("#groupOptions").innerHTML = groups.length ? groups.map((group) => `<label class="group-option"><input type="checkbox" name="allowedGroups" value="${escapeHtml(group)}" ${selected.includes(group) || selected.includes("*") ? "checked" : ""}/><span>${escapeHtml(group)}</span></label>`).join("") : '<span class="group-chip">No Incogniton groups available</span>';
+}
+
+function renderAutomationOptions(role, selected = []) {
+  const isND = role === "nd_admin" || role === "nd_operator";
+  const isFB = role === "fb_admin" || role === "fb_operator";
+  const isSuper = role === "super_admin";
+  
+  const allOptions = [
+    { value: "ndAutoPosting", label: "Auto Posting", type: "nd" },
+    { value: "ndAutoListing", label: "Auto Listing", type: "nd" },
+    { value: "ndAutoWarmup", label: "Auto Warmup", type: "nd" },
+    { value: "ndRandomPosting", label: "Random Posting", type: "nd" },
+    { value: "ndAccountCreation", label: "ND Account Creation", type: "nd" },
+    { value: "ndBulkCreateProfiles", label: "Bulk Create Profiles", type: "nd" },
+    { value: "ndFbListings", label: "FB Listings", type: "fb" }
+  ];
+  
+  const visibleOptions = allOptions.filter(opt => isSuper || (isND && opt.type === "nd") || (isFB && opt.type === "fb"));
+  
+  $("#automationOptions").innerHTML = visibleOptions.length ? visibleOptions.map((opt) => `<label class="group-option"><input type="checkbox" name="allowedAutomations" value="${opt.value}" ${selected.includes(opt.value) || selected.includes("*") ? "checked" : ""}/><span>${opt.label}</span></label>`).join("") : '<span class="group-chip">No automations for this role</span>';
 }
 
 function openUserModal(user = null) {
@@ -935,7 +990,8 @@ els.userForm.addEventListener("submit", async (event) => {
     name: data.get("name"),
     email: data.get("email"),
     role: data.get("role"),
-    allowedGroups: data.getAll("allowedGroups")
+    allowedGroups: data.getAll("allowedGroups"),
+    allowedAutomations: data.getAll("allowedAutomations")
   };
   const submit = $("#saveUserButton");
   submit.disabled = true;
@@ -1110,19 +1166,12 @@ function hideAuthGate() {
 function renderAuthMode() {
   const signup = authMode === "signup";
   $("#authTitle").textContent = signup ? "Create your workspace" : "Welcome back";
-  $("#authSubtitle").textContent = signup ? "Your first account becomes the KitKat Super Admin." : "Sign in to manage profiles, people, and automations.";
-  $("#authNameField").classList.toggle("hidden", !signup);
-  $("#authSubmit").textContent = signup ? "Create account" : "Sign in";
-  $("#authSwitchPrompt").textContent = signup ? "Already have an account?" : "New to KitKat?";
-  $("#authSwitchButton").textContent = signup ? "Sign in" : "Create the workspace";
-  $("#authForm").elements.password.autocomplete = signup ? "new-password" : "current-password";
+  $("#authSubtitle").textContent = "Sign in to manage profiles, people, and automations.";
+  $("#authNameField").classList.toggle("hidden", true);
+  $("#authSubmit").textContent = "Sign in";
+  $("#authForm").elements.password.autocomplete = "current-password";
   $("#authMessage").classList.add("hidden");
 }
-
-$("#authSwitchButton").addEventListener("click", () => {
-  authMode = authMode === "signin" ? "signup" : "signin";
-  renderAuthMode();
-});
 
 $("#authForm").addEventListener("submit", async (event) => {
   event.preventDefault();
