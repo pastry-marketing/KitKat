@@ -1,5 +1,14 @@
 import { cloudApi, getCloudSession, isCloudMode, signIn, signOut, signUp } from "./cloud-api.js";
-
+window.addEventListener("error", (e) => {
+  const container = document.getElementById("toastRegion");
+  if (container) container.innerHTML += `<div class="toast error"><strong>JS Error</strong><span>${e.message}</span></div>`;
+  else alert("JS Error: " + e.message);
+});
+window.addEventListener("unhandledrejection", (e) => {
+  const container = document.getElementById("toastRegion");
+  if (container) container.innerHTML += `<div class="toast error"><strong>Async Error</strong><span>${e.reason?.message || e.reason}</span></div>`;
+  else alert("Async Error: " + (e.reason?.message || e.reason));
+});
 const state = {
   connected: false,
   loading: true,

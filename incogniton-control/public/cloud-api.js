@@ -57,11 +57,6 @@ async function requireContext() {
 
 async function activeAgent(profileId) {
   const { membership, session } = await requireContext();
-  if (profileId) {
-    const response = await supabase.from("browser_profiles").select("agent_id").eq("workspace_id", membership.workspace_id).eq("profile_id", profileId).single();
-    if (response.error) fail(response.error);
-    return response.data.agent_id;
-  }
   const onlineSince = new Date(Date.now() - 86400_000).toISOString();
   const response = await supabase.from("agents").select("id").eq("workspace_id", membership.workspace_id).eq("active", true).gte("last_seen_at", onlineSince).order("last_seen_at", { ascending: false }).limit(1).maybeSingle();
   if (response.error) fail(response.error);
