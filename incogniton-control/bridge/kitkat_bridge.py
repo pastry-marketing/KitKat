@@ -247,7 +247,7 @@ class IncognitonClient:
         for attempt in range(3):
             try:
                 result = request_json(f"{INCOGNITON_URL}{endpoint}", method, body=body, timeout=timeout)
-                if isinstance(result, dict) and result.get("status") == "error":
+                if isinstance(result, dict) and result.get("status") in ("error", "fail"):
                     raise BridgeError(str(result.get("message") or "Incogniton returned an error"))
                 return result
             except HttpError as error:
@@ -733,7 +733,7 @@ class KitKatBridge:
             raise BridgeError("The command is missing an Incogniton profile ID")
         encoded = urllib.parse.quote(profile_id, safe="")
         if action == "launch_profile":
-            result = self.incogniton.request(f"/profile/launch/{encoded}", timeout=120)
+            result = self.incogniton.request(f"/profile/start/{encoded}", timeout=120)
             self.sync_profiles()
             return result
         if action == "stop_profile":
