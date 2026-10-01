@@ -825,7 +825,7 @@ function handleProfileAction(event) {
   }
 }
 
-$$// ND Automation logic
+// ND Automation logic
 async function fetchSheetRows(taskType) {
   try {
     const res = await api('/api/nd/fetch-rows', { method: 'POST', body: JSON.stringify({ taskType }) });
@@ -911,7 +911,7 @@ document.addEventListener('click', e => {
   }
 });
 
-('.nav-item[data-view]').forEach((button) => button.addEventListener("click", () => {
+$$('.nav-item[data-view]').forEach((button) => button.addEventListener("click", () => {
   const view = button.dataset.view;
   $$(".nav-item[data-view]").forEach((item) => item.classList.toggle("active", item === button));
   $$(".view").forEach((item) => item.classList.toggle("active", item.id === `${view}View`));
